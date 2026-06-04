@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rvz"
+version = "0.1.0"
+description = "Pure Python reader for Dolphin RVZ disc images"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "cryptography>=47,<48",
+    "zstandard>=0.23,<0.24",
+]
+
+[project.scripts]
+rvz = "rvz.cli:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.15",
+    "ty>=0.0.43",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["ANN", "B", "E", "F", "I", "SIM", "UP"]
+ignore = ["SIM117", "UP045"]
+
+[tool.ruff.format]
+line-ending = "auto"
+
+[tool.ty]
+
+[tool.ty.environment]
+python-version = "3.8"
+
+[tool.ty.rules]
+all = "warn"
