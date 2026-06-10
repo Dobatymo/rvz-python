@@ -1,18 +1,17 @@
 """Reader for Dolphin RVZ disc images."""
 
-from __future__ import annotations
-
 import bz2
 import hashlib
 import io
 import lzma
 import os
 import struct
-from collections.abc import Iterator
+import zlib
 from dataclasses import dataclass
-from typing import IO, Optional, Tuple, Union
+from typing import IO, Dict, Iterator, List, Optional, Tuple, Union
 
 import zstandard as zstd
+from typing_extensions import Self
 
 from .packing import decode_rvz_packing
 from .wii import (
@@ -141,7 +140,7 @@ class PartitionDataEntry:
 @dataclass(frozen=True)
 class PartitionEntry:
     key: bytes
-    data_entries: tuple[PartitionDataEntry, PartitionDataEntry]
+    data_entries: Tuple[PartitionDataEntry, PartitionDataEntry]
 
 
 @dataclass(frozen=True)
@@ -184,13 +183,13 @@ class _DataInterval:
 @dataclass(frozen=True)
 class _PartitionGroupData:
     data: bytes
-    exception_lists: tuple[tuple[HashException, ...], ...]
+    exception_lists: Tuple[Tuple[HashException, ...], ...]
 
 
 class RVZReader:
     """Read an RVZ image from a path or seekable binary file object."""
 
-    def __init__(self, source: Source) -> None:
+    def __init__(self, source: Source, filesize: Optional[int] = None) -> None:
         self._owns_file: bool = False
         self._source_name: Optional[str] = getattr(source, "name", None)
         if isinstance(source, (str, bytes, os.PathLike)):
@@ -202,7 +201,7 @@ class RVZReader:
             self._file = source
 
         self._ensure_seekable()
-        self._file_size: Optional[int] = self._cheap_file_size()
+        self._file_size: Optional[int] = filesize or self._cheap_file_size()
         self._group_cache: Optional[GroupCache] = None
         self._partition_group_cache: Optional[PartitionGroupCache] = None
         self._encrypted_wii_group_cache: Optional[EncryptedWiiGroupCache] = None
@@ -210,10 +209,10 @@ class RVZReader:
         try:
             self.file_header: FileHeader = self._read_file_header()
             self.disc_header: DiscHeader = self._read_disc_header()
-            self.partition_entries: list[PartitionEntry] = self._read_partition_entries()
-            self.raw_data_entries: list[RawDataEntry] = self._read_raw_data_entries()
-            self.group_entries: list[GroupEntry] = self._read_group_entries()
-            self._intervals: list[_DataInterval] = self._build_intervals()
+            self.partition_entries: List[PartitionEntry] = self._read_partition_entries()
+            self.raw_data_entries: List[RawDataEntry] = self._read_raw_data_entries()
+            self.group_entries: List[GroupEntry] = self._read_group_entries()
+            self._intervals: List[_DataInterval] = self._build_intervals()
         except Exception:
             if self._owns_file:
                 self._file.close()
@@ -235,12 +234,11 @@ class RVZReader:
         if self._owns_file and not self._file.closed:
             self._file.close()
 
-    def __enter__(self) -> RVZReader:
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.close()
-        return False
 
     def read(self, offset: int, size: int) -> bytes:
         """Read ISO bytes at *offset* without writing an ISO to disk."""
@@ -298,6 +296,12 @@ class RVZReader:
     def hash_iso(self, algorithm: str = "sha1", block_size: Optional[int] = None) -> str:
         """Hash the reconstructed ISO byte stream."""
 
+        if algorithm.lower() == "crc32":
+            checksum = 0
+            for chunk in self.iter_iso(block_size):
+                checksum = zlib.crc32(chunk, checksum)
+            return f"{checksum & 0xFFFFFFFF:08x}"
+
         digest = hashlib.new(algorithm)
         for chunk in self.iter_iso(block_size):
             digest.update(chunk)
@@ -307,6 +311,7 @@ class RVZReader:
         """Write the reconstructed ISO byte stream to *destination*."""
 
         close_output = False
+        output: IO[bytes]
         if isinstance(destination, (str, bytes, os.PathLike)):
             output = open(os.fspath(destination), "wb")  # noqa: SIM115
             close_output = True
@@ -452,7 +457,7 @@ class RVZReader:
         elif chunk_size % WII_GROUP_TOTAL_SIZE:
             raise InvalidRVZError("RVZ chunk sizes at least 2 MiB must be multiples of 2 MiB")
 
-    def _read_partition_entries(self) -> list[PartitionEntry]:
+    def _read_partition_entries(self) -> List[PartitionEntry]:
         header = self.disc_header
         total_size = header.partition_count * header.partition_entry_size
         if total_size == 0:
@@ -464,7 +469,7 @@ class RVZReader:
         if hashlib.sha1(data).digest() != header.partition_entries_hash:
             raise InvalidRVZError("partition table SHA-1 does not match")
 
-        entries: list[PartitionEntry] = []
+        entries: List[PartitionEntry] = []
         copy_size = min(header.partition_entry_size, 48)
         for index in range(header.partition_count):
             start = index * header.partition_entry_size
@@ -475,7 +480,7 @@ class RVZReader:
             entries.append(PartitionEntry(key=key, data_entries=(first, second)))
         return entries
 
-    def _read_raw_data_entries(self) -> list[RawDataEntry]:
+    def _read_raw_data_entries(self) -> List[RawDataEntry]:
         header = self.disc_header
         expected_size = header.raw_data_count * 24
         if expected_size == 0:
@@ -486,12 +491,12 @@ class RVZReader:
             expected_size,
             header.compression,
         )
-        entries: list[RawDataEntry] = []
+        entries: List[RawDataEntry] = []
         for offset in range(0, len(data), 24):
             entries.append(RawDataEntry(*struct.unpack_from(">QQII", data, offset)))
         return entries
 
-    def _read_group_entries(self) -> list[GroupEntry]:
+    def _read_group_entries(self) -> List[GroupEntry]:
         header = self.disc_header
         expected_size = header.group_count * 12
         data = self._read_compressed_blob(
@@ -500,7 +505,7 @@ class RVZReader:
             expected_size,
             header.compression,
         )
-        entries: list[GroupEntry] = []
+        entries: List[GroupEntry] = []
         for offset in range(0, len(data), 12):
             data_offset4, data_size, rvz_packed_size = struct.unpack_from(">III", data, offset)
             entries.append(
@@ -513,16 +518,24 @@ class RVZReader:
             )
         return entries
 
-    def _build_intervals(self) -> list[_DataInterval]:
-        intervals: list[_DataInterval] = []
-        for index, entry in enumerate(self.raw_data_entries):
-            if entry.data_size:
-                intervals.append(_DataInterval(entry.data_offset, entry.end, "raw", index))
+    def _build_intervals(self) -> List[_DataInterval]:
+        intervals: List[_DataInterval] = []
+        for index, raw_entry in enumerate(self.raw_data_entries):
+            if raw_entry.data_size:
+                intervals.append(_DataInterval(raw_entry.data_offset, raw_entry.end, "raw", index))
 
         for partition_index, partition in enumerate(self.partition_entries):
-            for data_index, entry in enumerate(partition.data_entries):
-                if entry.sector_count:
-                    intervals.append(_DataInterval(entry.start, entry.end, "partition", partition_index, data_index))
+            for data_index, partition_entry in enumerate(partition.data_entries):
+                if partition_entry.sector_count:
+                    intervals.append(
+                        _DataInterval(
+                            partition_entry.start,
+                            partition_entry.end,
+                            "partition",
+                            partition_index,
+                            data_index,
+                        )
+                    )
 
         intervals.sort(key=lambda item: item.start)
         last_end = 0
@@ -596,7 +609,7 @@ class RVZReader:
         decrypted_group_offset = encrypted_group_offset // WII_GROUP_TOTAL_SIZE * WII_GROUP_DATA_SIZE
         total_decrypted_size = self._partition_total_sectors(partition) * WII_BLOCK_DATA_SIZE
 
-        exceptions: list[HashException] = []
+        exceptions: List[HashException] = []
         if decrypted_group_offset < total_decrypted_size:
             decrypted_size = min(WII_GROUP_DATA_SIZE, total_decrypted_size - decrypted_group_offset)
             decrypted = self._read_partition_decrypted(
@@ -620,7 +633,7 @@ class RVZReader:
         partition_index: int,
         offset: int,
         size: int,
-        exceptions: Optional[list[HashException]] = None,
+        exceptions: Optional[List[HashException]] = None,
     ) -> bytes:
         partition = self.partition_entries[partition_index]
         partition_first_sector = partition.data_entries[0].first_sector
@@ -660,7 +673,7 @@ class RVZReader:
         data_size: int,
         offset: int,
         size: int,
-        exceptions: Optional[list[HashException]],
+        exceptions: Optional[List[HashException]],
     ) -> bytes:
         chunk_size = self.chunk_size * WII_BLOCK_DATA_SIZE // WII_BLOCK_TOTAL_SIZE
         exception_lists = max(1, chunk_size // WII_GROUP_DATA_SIZE)
@@ -851,16 +864,16 @@ class RVZReader:
 
     def _parse_hash_exception_lists(
         self, data: bytes, exception_lists: int, align_last: bool
-    ) -> tuple[tuple[tuple[HashException, ...], ...], int]:
+    ) -> Tuple[Tuple[Tuple[HashException, ...], ...], int]:
         position = 0
-        parsed_lists: list[tuple[HashException, ...]] = []
+        parsed_lists: List[Tuple[HashException, ...]] = []
         for list_index in range(exception_lists):
             if position + 2 > len(data):
                 raise InvalidRVZError("truncated Wii hash exception list")
 
             exception_count = struct.unpack_from(">H", data, position)[0]
             position += 2
-            exceptions: list[HashException] = []
+            exceptions: List[HashException] = []
             for _ in range(exception_count):
                 if position + 22 > len(data):
                     raise InvalidRVZError("truncated Wii hash exception entry")
@@ -873,7 +886,7 @@ class RVZReader:
 
         return tuple(parsed_lists), position
 
-    def _lzma_filter(self, lzma2: bool) -> dict[str, int]:
+    def _lzma_filter(self, lzma2: bool) -> Dict[str, int]:
         data = self.disc_header.compressor_data
         if lzma2:
             if len(data) != 1:
@@ -903,5 +916,5 @@ class RVZReader:
         }
 
 
-def open_rvz(source: Source) -> RVZReader:
-    return RVZReader(source)
+def open_rvz(source: Source, filesize: Optional[int] = None) -> RVZReader:
+    return RVZReader(source, filesize)

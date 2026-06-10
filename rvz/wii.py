@@ -1,10 +1,8 @@
 """Wii partition hashing and encryption helpers."""
 
-from __future__ import annotations
-
 import hashlib
 import warnings
-from typing import Any, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 AES_KEY_SIZE = 16
 BLOCKS_PER_GROUP = 0x40
@@ -26,14 +24,14 @@ H2_SIZE = 8 * hashlib.sha1().digest_size
 
 ZERO_IV = b"\0" * AES_KEY_SIZE
 HashException = Tuple[int, bytes]
-_CIPHER_TYPES: tuple[Any, Any, Any] | None = None
+_CIPHER_TYPES: Optional[Tuple[Any, Any, Any]] = None
 
 
 class WiiEncryptionError(ValueError):
     """Raised when Wii partition encryption input is malformed."""
 
 
-def _get_cipher_types() -> tuple[Any, Any, Any]:
+def _get_cipher_types() -> Tuple[Any, Any, Any]:
     global _CIPHER_TYPES
     if _CIPHER_TYPES is None:
         with warnings.catch_warnings():
@@ -57,7 +55,7 @@ def aes_cbc_encrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
     return encryptor.update(data) + encryptor.finalize()
 
 
-def build_hash_blocks(data_blocks: Sequence[bytes]) -> list[bytearray]:
+def build_hash_blocks(data_blocks: Sequence[bytes]) -> List[bytearray]:
     if len(data_blocks) != BLOCKS_PER_GROUP:
         raise WiiEncryptionError(f"Wii hash groups must contain {BLOCKS_PER_GROUP} data blocks")
 

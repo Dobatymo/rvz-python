@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+requires = [ "setuptools>=61" ]
 
 [project]
 name = "rvz"
@@ -8,35 +8,56 @@ version = "0.1.0"
 description = "Pure Python reader for Dolphin RVZ disc images"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = [
-    "cryptography>=47,<48",
-    "zstandard>=0.23,<0.24",
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
-
-[project.scripts]
-rvz = "rvz.cli:main"
+dependencies = [
+  "cryptography>=47",
+  "typing-extensions>=4",
+  "zstandard>=0.23",
+]
+urls.Repository = "https://github.com/Dobatymo/rvz-python"
+scripts.rvz = "rvz.cli:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.15",
-    "ty>=0.0.43",
+  "mypy>=1.14.1",
+  "pre-commit>=3.5",
+  "pytest>=8.3.5",
+  "ruff>=0.15.14",
+  "ty>=0.0.39",
 ]
+
+[tool.uv]
+required-version = ">=0.11.8"
+exclude-newer = "2 weeks"
 
 [tool.ruff]
 line-length = 120
-target-version = "py38"
+lint.select = [ "ANN", "B", "E", "F", "I", "S", "SIM", "UP" ]
+lint.ignore = [
+  "S324",   # RVZ and Wii disc formats require SHA-1 digests for integrity data.
+  "SIM117",
+  "UP045",
+]
 
-[tool.ruff.lint]
-select = ["ANN", "B", "E", "F", "I", "SIM", "UP"]
-ignore = ["SIM117", "UP045"]
-
-[tool.ruff.format]
-line-ending = "auto"
+[tool.mypy]
+explicit_package_bases = true
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+strict_equality = true
+warn_unused_configs = true
+no_implicit_optional = true
 
 [tool.ty]
-
-[tool.ty.environment]
-python-version = "3.8"
-
-[tool.ty.rules]
-all = "warn"
+environment.python-version = "3.8"
+rules.all = "warn"

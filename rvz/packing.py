@@ -1,8 +1,7 @@
 """RVZ packing decoder."""
 
-from __future__ import annotations
-
 import struct
+from typing import List
 
 _MASK32 = 0xFFFFFFFF
 _PRNG_WORDS = 521
@@ -14,7 +13,7 @@ class RVZPackingError(ValueError):
     """Raised when RVZ packed data is malformed."""
 
 
-def _advance_prng(buffer: list[int]) -> None:
+def _advance_prng(buffer: List[int]) -> None:
     for i in range(_PRNG_J):
         buffer[i] = (buffer[i] ^ buffer[i + _PRNG_WORDS - _PRNG_J]) & _MASK32
     for i in range(_PRNG_J, _PRNG_WORDS):

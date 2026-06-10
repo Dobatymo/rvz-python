@@ -1,13 +1,10 @@
 """Command line interface for the RVZ reader."""
 
-from __future__ import annotations
-
 import argparse
 import contextlib
 import sys
 import zipfile
-from collections.abc import Iterator, Sequence
-from typing import Optional
+from typing import Iterator, Optional, Sequence
 
 from .reader import RVZReader
 
@@ -17,8 +14,9 @@ def open_input(spec: str) -> Iterator[RVZReader]:
     if "!" in spec:
         archive_path, member = spec.split("!", 1)
         with zipfile.ZipFile(archive_path) as archive:
-            with archive.open(member, "r") as fileobj:
-                with RVZReader(fileobj) as reader:
+            zi = archive.getinfo(member)
+            with archive.open(zi, "r") as fileobj:
+                with RVZReader(fileobj, zi.file_size) as reader:
                     yield reader
     else:
         with RVZReader(spec) as reader:
