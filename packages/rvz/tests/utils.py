@@ -3,7 +3,6 @@ import struct
 from typing import Tuple
 
 import zstandard as zstd
-
 from rvz.packing import generate_padding
 
 

@@ -35,3 +35,28 @@ Python 3.8 dependency bounds:
 - https://pypi.org/pypi/cryptography/json
 - https://pypi.org/pypi/cryptography/47.0.0/json
 - https://pypi.org/pypi/cryptography/48.0.0/json
+
+Python tooling and CI:
+
+- https://pre-commit.com/
+- https://github.com/pre-commit/pre-commit-hooks
+- https://pypi.org/pypi/pre-commit-hooks/json
+- https://github.com/astral-sh/ruff-pre-commit
+- https://docs.astral.sh/ruff/rules/
+- https://docs.astral.sh/ruff/rules/hashlib-insecure-hash-function/
+- https://pyproject-fmt.readthedocs.io/
+- https://pypi.org/project/pyproject-fmt/
+- https://pypi.org/pypi/validate-pyproject/json
+- https://pypi.org/pypi/codespell/json
+- https://pypi.org/pypi/check-manifest/json
+- https://pypi.org/pypi/deptry/json
+- https://github.com/actions/checkout
+- https://github.com/actions/setup-python
+- https://github.com/astral-sh/setup-uv
+- https://docs.zizmor.sh/usage/
+- https://pypi.org/pypi/pre-commit/json
+- https://pypi.org/pypi/zizmor/json
+- https://github.com/codespell-project/codespell
+- https://validate-pyproject.readthedocs.io/
+- https://deptry.com/usage/
+- https://github.com/mgedmin/check-manifest

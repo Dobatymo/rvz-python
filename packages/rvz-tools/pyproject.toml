@@ -1,0 +1,33 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [ "setuptools>=61" ]
+
+[project]
+name = "rvz-tools"
+version = "0.1.0"
+description = "Batch hashing and Redump comparison tools for rvz"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "rich>=14.3.4",
+  "rvz>=0.1,<0.2",
+]
+urls.Repository = "https://github.com/Dobatymo/rvz-python"
+scripts.rvz-compare-dat = "rvz_tools.compare_hashes_to_dat:main"
+scripts.rvz-compare-reports = "rvz_tools.compare_reports:main"
+scripts.rvz-find-duplicates = "rvz_tools.find_duplicate_hashes:main"
+scripts.rvz-redump-hash = "rvz_tools.run_redump_hash_batches:main"
+
+[tool.setuptools]
+packages = [ "rvz_tools" ]
+package-dir = { "" = "src" }

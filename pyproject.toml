@@ -1,12 +1,6 @@
-[build-system]
-build-backend = "setuptools.build_meta"
-requires = [ "setuptools>=61" ]
-
 [project]
-name = "rvz"
-version = "0.1.0"
-description = "Pure Python reader for Dolphin RVZ disc images"
-readme = "README.md"
+name = "rvz-workspace"
+version = "0"
 requires-python = ">=3.8"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
@@ -19,12 +13,10 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "cryptography>=47",
-  "typing-extensions>=4",
-  "zstandard>=0.23",
+  "rvz",
+  "rvz-performance",
+  "rvz-tools",
 ]
-urls.Repository = "https://github.com/Dobatymo/rvz-python"
-scripts.rvz = "rvz.cli:main"
 
 [dependency-groups]
 dev = [
@@ -37,7 +29,12 @@ dev = [
 
 [tool.uv]
 required-version = ">=0.11.8"
+sources.rvz = { workspace = true }
+sources.rvz-performance = { workspace = true }
+sources.rvz-tools = { workspace = true }
 exclude-newer = "2 weeks"
+package = false
+workspace.members = [ "packages/*" ]
 
 [tool.ruff]
 line-length = 120

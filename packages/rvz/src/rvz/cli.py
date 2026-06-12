@@ -10,16 +10,16 @@ from .reader import RVZReader
 
 
 @contextlib.contextmanager
-def open_input(spec: str) -> Iterator[RVZReader]:
+def open_input(spec: str, padding_implementation: int = 1) -> Iterator[RVZReader]:
     if "!" in spec:
         archive_path, member = spec.split("!", 1)
         with zipfile.ZipFile(archive_path) as archive:
             zi = archive.getinfo(member)
             with archive.open(zi, "r") as fileobj:
-                with RVZReader(fileobj, zi.file_size) as reader:
+                with RVZReader(fileobj, zi.file_size, padding_implementation) as reader:
                     yield reader
     else:
-        with RVZReader(spec) as reader:
+        with RVZReader(spec, padding_implementation=padding_implementation) as reader:
             yield reader
 
 
@@ -27,6 +27,16 @@ def add_input_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "input",
         help="RVZ path, or ZIP/member syntax as archive.zip!path/in/archive.rvz",
+    )
+
+
+def add_padding_implementation_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--padding-implementation",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=1,
+        help="RVZ padding generator to use: 1=original, 2=NumPy, 3=NumPy plus exact tuple cache, 4=CFFI C loop",
     )
 
 
@@ -45,13 +55,13 @@ def command_info(args: argparse.Namespace) -> None:
 
 
 def command_hash(args: argparse.Namespace) -> None:
-    with open_input(args.input) as reader:
+    with open_input(args.input, args.padding_implementation) as reader:
         for algorithm in args.algorithm:
             print(f"{algorithm}: {reader.hash_iso(algorithm, args.block_size)}")
 
 
 def command_extract(args: argparse.Namespace) -> None:
-    with open_input(args.input) as reader:
+    with open_input(args.input, args.padding_implementation) as reader:
         reader.extract_iso(args.output, args.block_size)
 
 
@@ -73,12 +83,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="hashlib algorithm name; may be passed more than once (default: sha1)",
     )
     hash_parser.add_argument("--block-size", type=int, default=None)
+    add_padding_implementation_argument(hash_parser)
     hash_parser.set_defaults(func=command_hash)
 
     extract = subparsers.add_parser("extract", help="write reconstructed ISO bytes")
     add_input_argument(extract)
     extract.add_argument("output", help="destination ISO path")
     extract.add_argument("--block-size", type=int, default=None)
+    add_padding_implementation_argument(extract)
     extract.set_defaults(func=command_extract)
 
     return parser

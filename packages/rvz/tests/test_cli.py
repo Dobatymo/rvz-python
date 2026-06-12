@@ -46,6 +46,19 @@ class RVZCliTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(stdout.getvalue().strip(), f"sha1: {hashlib.sha1(iso).hexdigest()}")
 
+    def test_hash_accepts_padding_implementation_flag(self) -> None:
+        blob, iso = build_minimal_rvz()
+        with tempfile.TemporaryDirectory() as tmp:
+            rvz_path = Path(tmp) / "game.rvz"
+            rvz_path.write_bytes(blob)
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                status = main(["hash", str(rvz_path), "--padding-implementation", "1"])
+
+            self.assertEqual(status, 0)
+            self.assertEqual(stdout.getvalue().strip(), f"sha1: {hashlib.sha1(iso).hexdigest()}")
+
     def test_extract_writes_reconstructed_iso(self) -> None:
         blob, iso = build_minimal_rvz()
         with tempfile.TemporaryDirectory() as tmp:

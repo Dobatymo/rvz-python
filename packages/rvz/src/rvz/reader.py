@@ -13,7 +13,7 @@ from typing import IO, Dict, Iterator, List, Optional, Tuple, Union
 import zstandard as zstd
 from typing_extensions import Self
 
-from .packing import decode_rvz_packing
+from .packing import decode_rvz_packing, get_padding_generator
 from .wii import (
     BLOCK_DATA_SIZE as WII_BLOCK_DATA_SIZE,
 )
@@ -189,7 +189,9 @@ class _PartitionGroupData:
 class RVZReader:
     """Read an RVZ image from a path or seekable binary file object."""
 
-    def __init__(self, source: Source, filesize: Optional[int] = None) -> None:
+    def __init__(self, source: Source, filesize: Optional[int] = None, padding_implementation: int = 1) -> None:
+        get_padding_generator(padding_implementation)
+        self.padding_implementation = padding_implementation
         self._owns_file: bool = False
         self._source_name: Optional[str] = getattr(source, "name", None)
         if isinstance(source, (str, bytes, os.PathLike)):
@@ -733,7 +735,7 @@ class RVZReader:
             unpacked_size = group.rvz_packed_size or output_size
             data = self._decompress(stored, compression, unpacked_size)
             if group.rvz_packed_size:
-                data = decode_rvz_packing(data, output_size, data_offset)
+                data = decode_rvz_packing(data, output_size, data_offset, self.padding_implementation)
 
         if len(data) != output_size:
             raise InvalidRVZError(f"group {group_index} decoded to {len(data)} bytes, expected {output_size}")
@@ -780,7 +782,7 @@ class RVZReader:
                     raise InvalidRVZError(
                         f"group {group_index} decoded to {len(data)} RVZ-packed bytes, expected {group.rvz_packed_size}"
                     )
-                data = decode_rvz_packing(data, output_size, data_offset)
+                data = decode_rvz_packing(data, output_size, data_offset, self.padding_implementation)
             elif len(data) != output_size:
                 raise InvalidRVZError(f"group {group_index} decoded to {len(data)} bytes, expected {output_size}")
 
@@ -916,5 +918,5 @@ class RVZReader:
         }
 
 
-def open_rvz(source: Source, filesize: Optional[int] = None) -> RVZReader:
-    return RVZReader(source, filesize)
+def open_rvz(source: Source, filesize: Optional[int] = None, padding_implementation: int = 1) -> RVZReader:
+    return RVZReader(source, filesize, padding_implementation)

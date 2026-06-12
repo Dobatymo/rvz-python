@@ -1,8 +1,0 @@
-include .pre-commit-config.yaml
-include .python-version
-include uv.lock
-include *.md
-recursive-include tests *.py
-recursive-include tools *.py
-exclude *.bat
-exclude .*

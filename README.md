@@ -1,11 +1,42 @@
-rvz
-===
+# rvz workspace
 
-Pure Python RVZ reader focused on streaming the reconstructed ISO byte stream.
+This repository is a uv workspace containing three independently buildable
+Python distributions with one shared lockfile:
 
-The public API accepts either a path or a seekable binary file object, so RVZ
-members can be read directly from `zipfile.ZipFile.open(...)` without extracting
-the RVZ to disk first.
+- `rvz-performance` (`rvz_performance`): optional NumPy and CFFI padding accelerators.
+- `rvz` (`rvz`): the RVZ reader and CLI, with a pure-Python padding implementation.
+- `rvz-tools` (`rvz_tools`): Redump batch hashing and comparison commands.
+
+The `rvz` package does not require `rvz-performance`. Install the optional
+accelerators through `rvz[performance]`; padding implementation 1 remains pure
+Python and is always available.
+
+## Development
+
+```powershell
+python -m uv sync --locked --all-packages --all-extras
+python -m uv run --locked mypy packages/rvz-performance
+python -m uv run --locked mypy packages/rvz
+python -m uv run --locked mypy packages/rvz-tools
+python -m uv run --locked ruff check .
+python -m uv run --locked --directory packages/rvz pytest .
+python -m uv run --locked --directory packages/rvz-performance pytest .
+python -m uv run --locked --directory packages/rvz-tools pytest .
+python -m uv build --all-packages
+```
+
+Run mypy once per workspace member rather than as `mypy .`. Each independent
+distribution has its own top-level `tests` package, so combining all members in
+one mypy invocation creates duplicate module names.
+
+Run pytest from each workspace member directory for the same reason. A single
+root pytest invocation with the default import mode cannot collect the three
+independent top-level `tests` packages correctly.
+
+Run commands for a specific workspace package from the repository root with
+`uv run --package PACKAGE COMMAND`.
+
+## Core Library
 
 ```python
 from rvz import RVZReader
@@ -15,36 +46,41 @@ with RVZReader("game.rvz") as reader:
     reader.extract_iso("game.iso")
 ```
 
-The command line interface supports the same streaming path:
-
 ```powershell
-python -m rvz.cli info game.rvz
-python -m rvz.cli hash game.rvz -a sha1
-python -m rvz.cli extract game.rvz game.iso
-python -m rvz.cli hash archive.zip!game.rvz
+python -m uv run --locked --package rvz rvz info game.rvz
+python -m uv run --locked --package rvz rvz hash archive.zip!game.rvz
+python -m uv run --locked --package rvz --extra performance rvz hash game.rvz --padding-implementation 4
 ```
 
-Large local sample files are ignored by git. To run the optional sample-file
-integration checks for the GameCube sample:
+## Redump Tools
+
+The scanner accepts raw `.rvz`, `.iso`, and `.gcm` files and ZIP members with
+those suffixes. Pass one or more files or directories after `--in-paths`.
 
 ```powershell
-$env:RVZ_RUN_SAMPLE_TESTS = "1"
-python -m unittest tests.test_sample_files
+python -m uv run --locked --package rvz-tools rvz-redump-hash --resume --mode dolphintool --in-paths PATH_TO_REDUMP [MORE_PATHS...] --out-path hash-compare
+python -m uv run --locked --package rvz-tools rvz-redump-hash --resume --mode rvz --in-paths PATH_TO_REDUMP [MORE_PATHS...] --out-path hash-compare
+python -m uv run --locked --package rvz-tools rvz-redump-hash --resume --mode rvz-spooled --in-paths PATH_TO_REDUMP [MORE_PATHS...] --out-path hash-compare
+python -m uv run --locked --package rvz-tools rvz-compare-reports --run-dir hash-compare
+python -m uv run --locked --package rvz-tools rvz-compare-dat --hashes-json hash-compare/rvz-direct/hashes.json
+python -m uv run --locked --package rvz-tools rvz-find-duplicates --hashes-json hash-compare/rvz-direct/hashes.json
 ```
 
-The real Wii sample reconstructs a 4.7 GB ISO stream and is much slower:
+`rvz-compare-dat` loads every top-level `*.dat` file from `datfiles` by
+default. Use `--dat-dir PATH` to select another directory, and `--dat PATH`
+to add individual DAT files.
 
-```powershell
-$env:RVZ_RUN_WII_SAMPLE_TESTS = "1"
-python -m unittest tests.test_sample_files.WiiSampleFileTests
-```
+With `rvz-redump-hash --resume`, add `--retry-errors` to discard prior
+non-`ok` rows and process those inputs again. `--retry-errors` requires
+`--resume`.
 
-Current reader support:
+Use `--include-md5` on all three batch modes when MD5 is needed. Duplicate
+detection uses SHA1 by default and accepts `--algorithm md5` or
+`--algorithm crc32`.
 
-- RVZ container/header validation
-- Zstandard, bzip2, LZMA/LZMA2, PURGE, and uncompressed RVZ data
-- raw-data/GameCube RVZ reconstruction
-- Wii partition hash block regeneration and AES-CBC encryption using `cryptography`
-- RVZ hash exception lists for Wii partition reconstruction
-- RVZ pseudorandom padding unpacking
-- path and seekable file-object inputs
+## Package Documentation
+
+- [Core library](packages/rvz/README.md)
+- [Performance package](packages/rvz-performance/README.md)
+- [Tools package](packages/rvz-tools/README.md)
+- [Padding benchmarks](packages/rvz-performance/PERFORMANCE.md)

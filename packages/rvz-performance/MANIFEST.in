@@ -1,0 +1,3 @@
+include PERFORMANCE.md
+include README.md
+recursive-include tests *.py

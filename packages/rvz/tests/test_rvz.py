@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import io
 import struct
 import unittest
@@ -6,11 +7,19 @@ import warnings
 import zipfile
 import zlib
 from typing import Tuple
+from unittest import mock
 
 import zstandard as zstd
-
 from rvz import RVZReader
-from rvz.packing import decode_rvz_packing, generate_padding
+from rvz import packing as packing_module
+from rvz.packing import (
+    RVZPackingError,
+    decode_rvz_packing,
+    generate_padding,
+    generate_padding_cached_numpy,
+    generate_padding_cffi,
+    generate_padding_numpy,
+)
 from rvz.wii import (
     BLOCK_DATA_SIZE,
     BLOCK_HEADER_SIZE,
@@ -22,6 +31,8 @@ from rvz.wii import (
 )
 
 from .utils import build_minimal_rvz
+
+_PERFORMANCE_AVAILABLE = importlib.util.find_spec("rvz_performance") is not None
 
 
 def build_wii_partition_rvz(exception_digest: bytes = b"") -> Tuple[bytes, bytes, bytes]:
@@ -104,6 +115,25 @@ class RVZPackingTests(unittest.TestCase):
             "56b7f95f37b14dcdec2ea34b4f13ef95cae6a79d4f23ca18133834018c303b53",
         )
 
+    @unittest.skipUnless(_PERFORMANCE_AVAILABLE, "rvz-performance is not installed")
+    def test_generate_padding_alternatives_match_original(self) -> None:
+        seed = bytes(range(68))
+        expected = generate_padding(seed, 4097, 17)
+        self.assertEqual(generate_padding_numpy(seed, 4097, 17), expected)
+        self.assertEqual(generate_padding_cached_numpy(seed, 4097, 17), expected)
+
+    @unittest.skipUnless(_PERFORMANCE_AVAILABLE, "rvz-performance is not installed")
+    def test_generate_padding_cffi_matches_original(self) -> None:
+        seed = bytes(range(68))
+        self.assertEqual(generate_padding_cffi(seed, 4097, 17), generate_padding(seed, 4097, 17))
+
+    def test_optional_performance_package_has_clear_error(self) -> None:
+        packing_module._performance_generator.cache_clear()
+        with mock.patch.object(packing_module.importlib, "import_module", side_effect=ImportError):
+            with self.assertRaisesRegex(RVZPackingError, "install rvz\\[performance\\]"):
+                generate_padding_numpy(bytes(range(68)), 32)
+        packing_module._performance_generator.cache_clear()
+
     def test_decode_rvz_packing_literals_and_padding(self) -> None:
         seed = bytes(range(68))
         packed = struct.pack(">I", 3) + b"abc" + struct.pack(">I", 0x80000005) + seed
@@ -111,6 +141,13 @@ class RVZPackingTests(unittest.TestCase):
             decode_rvz_packing(packed, 8),
             b"abc" + generate_padding(seed, 5, 3),
         )
+
+    def test_decode_rvz_packing_rejects_unknown_padding_implementation(self) -> None:
+        seed = bytes(range(68))
+        packed = struct.pack(">I", 3) + b"abc" + struct.pack(">I", 0x80000005) + seed
+
+        with self.assertRaises(RVZPackingError):
+            decode_rvz_packing(packed, 8, padding_implementation=99)
 
 
 class RVZReaderTests(unittest.TestCase):

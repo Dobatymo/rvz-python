@@ -45,6 +45,14 @@ repos:
   rev: '0.51'
   hooks:
   - id: check-manifest
+    name: check-manifest (rvz)
+    args: [packages/rvz]
+  - id: check-manifest
+    name: check-manifest (rvz-performance)
+    args: [packages/rvz-performance]
+  - id: check-manifest
+    name: check-manifest (rvz-tools)
+    args: [packages/rvz-tools]
 - repo: https://github.com/zizmorcore/zizmor-pre-commit
   rev: v1.25.2
   hooks:
